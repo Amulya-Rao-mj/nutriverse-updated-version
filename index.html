@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutriverse - Your Personal Nutrition Guide</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Login/Signup Section -->
+    <div id="auth-section" class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h1 class="logo">🌱 Nutriverse</h1>
+                <p class="tagline">Your Personal Nutrition Guide</p>
+            </div>
+            
+            <!-- Login Form -->
+            <div id="login-form" class="auth-form active">
+                <h2>Welcome Back!</h2>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="login-email">Email</label>
+                        <input type="email" id="login-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </form>
+                <p class="auth-switch">
+                    Don't have an account? <a href="#" id="show-signup">Sign Up</a>
+                </p>
+            </div>
+            
+            <!-- Signup Form -->
+            <div id="signup-form" class="auth-form">
+                <h2>Create Account</h2>
+                <form id="signupForm">
+                    <div class="form-group">
+                        <label for="signup-name">Name</label>
+                        <input type="text" id="signup-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-email">Email</label>
+                        <input type="email" id="signup-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signup-password">Password</label>
+                        <input type="password" id="signup-password" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Sign Up</button>
+                </form>
+                <p class="auth-switch">
+                    Already have an account? <a href="#" id="show-login">Login</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Section -->
+    <div id="dashboard-section" class="dashboard hidden">
+        <nav class="navbar">
+            <div class="nav-brand">🌱 Nutriverse</div>
+            <div class="nav-links">
+                <button class="nav-btn active" data-page="profile">Profile</button>
+                <button class="nav-btn" data-page="meals">Meal Suggestions</button>
+                <button class="nav-btn" data-page="meal-planner">Meal Planner</button>
+                <button class="nav-btn" data-page="exercises">Exercises</button>
+                <button class="nav-btn" data-page="consultation">Consultation</button>
+                <button class="nav-btn" id="logout-btn">Logout</button>
+            </div>
+        </nav>
+
+        <!-- Profile Page -->
+        <div id="profile-page" class="page active">
+            <div class="container">
+                <h2>Your Profile</h2>
+                <div class="profile-card">
+                    <form id="profileForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profile-name">Name</label>
+                                <input type="text" id="profile-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-age">Age</label>
+                                <input type="number" id="profile-age" min="1" max="120" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profile-gender">Gender</label>
+                                <select id="profile-gender" required>
+                                    <option value="">Select Gender</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-diet">Diet Type</label>
+                                <select id="profile-diet" required>
+                                    <option value="">Select Diet</option>
+                                    <option value="veg">Vegetarian</option>
+                                    <option value="non-veg">Non-Vegetarian</option>
+                                    <option value="vegan">Vegan</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profile-height">Height (cm)</label>
+                                <input type="number" id="profile-height" min="50" max="250" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="profile-weight">Weight (kg)</label>
+                                <input type="number" id="profile-weight" min="10" max="300" step="0.1" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="profile-plan">Fitness Plan</label>
+                                <select id="profile-plan" required>
+                                    <option value="">Select Plan</option>
+                                    <option value="weight-loss">Weight Loss</option>
+                                    <option value="weight-gain">Weight Gain</option>
+                                    <option value="fat-loss">Fat Loss</option>
+                                    <option value="muscle-building">Muscle Building</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Profile</button>
+                    </form>
+                    <div id="bmi-display" class="bmi-info"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Meals Page -->
+        <div id="meals-page" class="page">
+            <div class="container">
+                <h2>Meal Suggestions</h2>
+                <div id="meals-container" class="meals-grid"></div>
+            </div>
+        </div>
+
+        <!-- Exercises Page -->
+        <div id="exercises-page" class="page">
+            <div class="container">
+                <h2>Exercise Recommendations</h2>
+                <div id="exercises-container" class="exercises-grid"></div>
+            </div>
+        </div>
+
+        <!-- Meal Planner Page -->
+        <div id="meal-planner-page" class="page">
+            <div class="container">
+                <h2>Weekly Meal Planner</h2>
+                <div class="meal-planner-controls">
+                    <button class="btn btn-secondary" id="generate-meal-plan">Generate Weekly Plan</button>
+                    <button class="btn btn-secondary" id="clear-meal-plan">Clear Plan</button>
+                </div>
+                <div id="meal-planner-container" class="meal-planner-grid"></div>
+            </div>
+        </div>
+
+        <!-- Consultation Page -->
+        <div id="consultation-page" class="page">
+            <div class="container">
+                <h2>Book Online Consultation</h2>
+                <div class="consultation-content">
+                    <div class="consultation-form-card">
+                        <h3>Schedule Your Appointment</h3>
+                        <form id="consultationForm">
+                            <div class="form-group">
+                                <label for="consultation-date">Preferred Date</label>
+                                <input type="date" id="consultation-date" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="consultation-time">Preferred Time</label>
+                                <select id="consultation-time" required>
+                                    <option value="">Select Time</option>
+                                    <option value="09:00">9:00 AM</option>
+                                    <option value="10:00">10:00 AM</option>
+                                    <option value="11:00">11:00 AM</option>
+                                    <option value="12:00">12:00 PM</option>
+                                    <option value="14:00">2:00 PM</option>
+                                    <option value="15:00">3:00 PM</option>
+                                    <option value="16:00">4:00 PM</option>
+                                    <option value="17:00">5:00 PM</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="consultation-doctor">Select Doctor</label>
+                                <select id="consultation-doctor" required>
+                                    <option value="">Select Doctor</option>
+                                    <option value="dr-smith">Dr. Sarah Smith - Nutritionist</option>
+                                    <option value="dr-johnson">Dr. Michael Johnson - Dietitian</option>
+                                    <option value="dr-williams">Dr. Emily Williams - Wellness Coach</option>
+                                    <option value="dr-brown">Dr. David Brown - Clinical Nutritionist</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="consultation-reason">Reason for Consultation</label>
+                                <textarea id="consultation-reason" rows="4" placeholder="Briefly describe your health goals or concerns..." required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Book Appointment</button>
+                        </form>
+                    </div>
+                    <div class="appointments-list-card">
+                        <h3>Your Appointments</h3>
+                        <div id="appointments-list" class="appointments-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recipe Detail Modal -->
+    <div id="recipe-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <div id="recipe-detail-content"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
