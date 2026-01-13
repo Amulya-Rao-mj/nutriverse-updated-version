@@ -42,4 +42,3 @@ Works on all modern browsers including Chrome, Firefox, Safari, and Edge.
 - Data is stored locally in your browser using localStorage
 - Clear browser data to reset all stored information
 - This is a frontend-only application - no backend server required
-
