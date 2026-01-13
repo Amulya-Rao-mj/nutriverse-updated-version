@@ -656,6 +656,11 @@ body {
     color: #FF9800;
 }
 
+.appointment-status.cancelled {
+    background: #ffebee;
+    color: #F44336;
+}
+
 .delete-appointment {
     background: var(--secondary-color);
     color: white;
@@ -670,6 +675,94 @@ body {
 
 .delete-appointment:hover {
     background: #ee5a5a;
+}
+
+.appointment-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.accept-appointment {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.3s ease;
+}
+
+.accept-appointment:hover {
+    background: var(--primary-dark);
+}
+
+.cancel-appointment {
+    background: var(--secondary-color);
+    color: white;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.3s ease;
+}
+
+.cancel-appointment:hover {
+    background: #ee5a5a;
+}
+
+/* Doctor Dashboard */
+.doctor-content {
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.doctor-profile-card,
+.doctor-appointments-card {
+    background: var(--card-background);
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: var(--shadow);
+}
+
+.doctor-profile-card h3,
+.doctor-appointments-card h3 {
+    margin-bottom: 20px;
+    color: var(--text-primary);
+    font-size: 1.5em;
+}
+
+.timing-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.timing-checkbox {
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+}
+
+.appointment-patient-info {
+    margin-top: 10px;
+    padding: 10px;
+    background: var(--background);
+    border-radius: 8px;
+    font-size: 0.9em;
+}
+
+.appointment-patient-info strong {
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 5px;
 }
 
 /* Recipe Modal */
@@ -936,6 +1029,10 @@ body {
     }
     
     .consultation-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .doctor-content {
         grid-template-columns: 1fr;
     }
     

@@ -20,6 +20,14 @@
                 <h2>Welcome Back!</h2>
                 <form id="loginForm">
                     <div class="form-group">
+                        <label for="login-role">Login As</label>
+                        <select id="login-role" required>
+                            <option value="user">User</option>
+                            <option value="doctor">Doctor</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label for="login-email">Email</label>
                         <input type="email" id="login-email" required>
                     </div>
@@ -38,6 +46,14 @@
             <div id="signup-form" class="auth-form">
                 <h2>Create Account</h2>
                 <form id="signupForm">
+                    <div class="form-group">
+                        <label for="signup-role">Sign Up As</label>
+                        <select id="signup-role" required>
+                            <option value="user">User</option>
+                            <option value="doctor">Doctor</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label for="signup-name">Name</label>
                         <input type="text" id="signup-name" required>
@@ -205,24 +221,12 @@
                                 <label for="consultation-time">Preferred Time</label>
                                 <select id="consultation-time" required>
                                     <option value="">Select Time</option>
-                                    <option value="09:00">9:00 AM</option>
-                                    <option value="10:00">10:00 AM</option>
-                                    <option value="11:00">11:00 AM</option>
-                                    <option value="12:00">12:00 PM</option>
-                                    <option value="14:00">2:00 PM</option>
-                                    <option value="15:00">3:00 PM</option>
-                                    <option value="16:00">4:00 PM</option>
-                                    <option value="17:00">5:00 PM</option>
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label for="consultation-doctor">Select Doctor</label>
                                 <select id="consultation-doctor" required>
                                     <option value="">Select Doctor</option>
-                                    <option value="dr-smith">Dr. Sarah Smith - Nutritionist</option>
-                                    <option value="dr-johnson">Dr. Michael Johnson - Dietitian</option>
-                                    <option value="dr-williams">Dr. Emily Williams - Wellness Coach</option>
-                                    <option value="dr-brown">Dr. David Brown - Clinical Nutritionist</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -235,6 +239,62 @@
                     <div class="appointments-list-card">
                         <h3>Your Appointments</h3>
                         <div id="appointments-list" class="appointments-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Doctor Dashboard Page -->
+        <div id="doctor-page" class="page">
+            <div class="container">
+                <h2>Doctor Dashboard</h2>
+                <div class="doctor-content">
+                    <div class="doctor-profile-card">
+                        <h3>Doctor Profile</h3>
+                        <form id="doctorProfileForm">
+                            <div class="form-group">
+                                <label for="doctor-name">Name</label>
+                                <input type="text" id="doctor-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="doctor-designation">Designation</label>
+                                <input type="text" id="doctor-designation" placeholder="e.g., Nutritionist, Dietitian" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Available Timings</label>
+                                <div class="timing-checkboxes">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" value="09:00" class="timing-checkbox"> 9:00 AM
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" value="10:00" class="timing-checkbox"> 10:00 AM
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" value="11:00" class="timing-checkbox"> 11:00 AM
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" value="12:00" class="timing-checkbox"> 12:00 PM
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" value="14:00" class="timing-checkbox"> 2:00 PM
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" value="15:00" class="timing-checkbox"> 3:00 PM
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" value="16:00" class="timing-checkbox"> 4:00 PM
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" value="17:00" class="timing-checkbox"> 5:00 PM
+                                    </label>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Profile</button>
+                        </form>
+                    </div>
+                    <div class="doctor-appointments-card">
+                        <h3>Booked Appointments</h3>
+                        <div id="doctor-appointments-list" class="appointments-list"></div>
                     </div>
                 </div>
             </div>

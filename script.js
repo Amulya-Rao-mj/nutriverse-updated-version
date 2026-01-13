@@ -1,6 +1,7 @@
 // User data storage (using localStorage)
 const STORAGE_KEY = 'nutriverse_users';
 const CURRENT_USER_KEY = 'nutriverse_current_user';
+const CURRENT_USER_ROLE_KEY = 'nutriverse_current_user_role';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,9 +12,15 @@ document.addEventListener('DOMContentLoaded', () => {
 // Check if user is logged in
 function checkAuth() {
     const currentUser = localStorage.getItem(CURRENT_USER_KEY);
-    if (currentUser) {
-        showDashboard();
-        loadUserProfile();
+    const currentRole = localStorage.getItem(CURRENT_USER_ROLE_KEY);
+    if (currentUser && currentRole) {
+        showDashboard(currentRole);
+        if (currentRole === 'doctor') {
+            loadDoctorProfile();
+            loadDoctorAppointments();
+        } else if (currentRole === 'user') {
+            loadUserProfile();
+        }
     } else {
         showAuth();
     }
@@ -36,6 +43,12 @@ function setupEventListeners() {
     document.getElementById('loginForm').addEventListener('submit', handleLogin);
     document.getElementById('signupForm').addEventListener('submit', handleSignup);
     document.getElementById('profileForm').addEventListener('submit', handleProfileSave);
+    
+    // Doctor profile form
+    const doctorProfileForm = document.getElementById('doctorProfileForm');
+    if (doctorProfileForm) {
+        doctorProfileForm.addEventListener('submit', handleDoctorProfileSave);
+    }
     
     // Navigation
     document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
@@ -101,17 +114,24 @@ function handleLogin(e) {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
+    const role = document.getElementById('login-role').value;
     
     const users = getUsers();
-    const user = users.find(u => u.email === email && u.password === password);
+    const user = users.find(u => u.email === email && u.password === password && u.role === role);
     
     if (user) {
         localStorage.setItem(CURRENT_USER_KEY, email);
-        showDashboard();
-        loadUserProfile();
+        localStorage.setItem(CURRENT_USER_ROLE_KEY, role);
+        showDashboard(role);
+        if (role === 'doctor') {
+            loadDoctorProfile();
+            loadDoctorAppointments();
+        } else if (role === 'user') {
+            loadUserProfile();
+        }
         document.getElementById('loginForm').reset();
     } else {
-        alert('Invalid email or password!');
+        alert('Invalid email, password, or role!');
     }
 }
 
@@ -121,6 +141,7 @@ function handleSignup(e) {
     const name = document.getElementById('signup-name').value;
     const email = document.getElementById('signup-email').value;
     const password = document.getElementById('signup-password').value;
+    const role = document.getElementById('signup-role').value;
     
     const users = getUsers();
     
@@ -132,7 +153,12 @@ function handleSignup(e) {
     const newUser = {
         email,
         password,
-        profile: {
+        role,
+        profile: role === 'doctor' ? {
+            name,
+            designation: '',
+            availableTimings: []
+        } : {
             name,
             age: '',
             gender: '',
@@ -147,9 +173,14 @@ function handleSignup(e) {
     users.push(newUser);
     saveUsers(users);
     localStorage.setItem(CURRENT_USER_KEY, email);
+    localStorage.setItem(CURRENT_USER_ROLE_KEY, role);
     
-    showDashboard();
-    loadUserProfile();
+    showDashboard(role);
+    if (role === 'doctor') {
+        loadDoctorProfile();
+    } else if (role === 'user') {
+        loadUserProfile();
+    }
     document.getElementById('signupForm').reset();
 }
 
@@ -880,7 +911,11 @@ function switchPage(page) {
         loadMealPlanner();
     } else if (page === 'consultation') {
         loadAppointments();
+        loadDoctorsForBooking();
         setMinDate();
+    } else if (page === 'doctor') {
+        loadDoctorProfile();
+        loadDoctorAppointments();
     }
 }
 
@@ -891,15 +926,50 @@ function showAuth() {
 }
 
 // Show dashboard
-function showDashboard() {
+function showDashboard(role) {
     document.getElementById('auth-section').classList.add('hidden');
     document.getElementById('dashboard-section').classList.remove('hidden');
+    
+    // Update navigation based on role
+    const navLinks = document.querySelector('.nav-links');
+    if (role === 'doctor') {
+        navLinks.innerHTML = `
+            <button class="nav-btn active" data-page="doctor">Dashboard</button>
+            <button class="nav-btn" id="logout-btn">Logout</button>
+        `;
+        document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const page = e.target.getAttribute('data-page');
+                switchPage(page);
+            });
+        });
+        document.getElementById('logout-btn').addEventListener('click', handleLogout);
+        switchPage('doctor');
+    } else if (role === 'user') {
+        navLinks.innerHTML = `
+            <button class="nav-btn active" data-page="profile">Profile</button>
+            <button class="nav-btn" data-page="meals">Meal Suggestions</button>
+            <button class="nav-btn" data-page="meal-planner">Meal Planner</button>
+            <button class="nav-btn" data-page="exercises">Exercises</button>
+            <button class="nav-btn" data-page="consultation">Consultation</button>
+            <button class="nav-btn" id="logout-btn">Logout</button>
+        `;
+        document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const page = e.target.getAttribute('data-page');
+                switchPage(page);
+            });
+        });
+        document.getElementById('logout-btn').addEventListener('click', handleLogout);
+        switchPage('profile');
+    }
 }
 
 // Handle logout
 function handleLogout() {
     if (confirm('Are you sure you want to logout?')) {
         localStorage.removeItem(CURRENT_USER_KEY);
+        localStorage.removeItem(CURRENT_USER_ROLE_KEY);
         showAuth();
         document.getElementById('loginForm').reset();
     }
@@ -1136,11 +1206,20 @@ function handleConsultationBooking(e) {
     const doctor = document.getElementById('consultation-doctor').value;
     const reason = document.getElementById('consultation-reason').value;
     
+    if (!doctor) {
+        alert('Please select a doctor!');
+        return;
+    }
+    
     const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
+    const users = getUsers();
+    const currentUser = users.find(u => u.email === currentUserEmail);
+    const patientName = currentUser ? currentUser.profile.name : 'Patient';
     
     const appointment = {
         id: Date.now(),
         email: currentUserEmail,
+        patientName: patientName,
         date,
         time,
         doctor,
@@ -1155,7 +1234,63 @@ function handleConsultationBooking(e) {
     
     document.getElementById('consultationForm').reset();
     loadAppointments();
+    loadDoctorsForBooking();
     alert('Appointment booked successfully! You will receive a confirmation email shortly.');
+}
+
+// Load doctors for booking
+function loadDoctorsForBooking() {
+    const users = getUsers();
+    const doctors = users.filter(u => u.role === 'doctor' && u.profile && u.profile.name);
+    
+    const doctorSelect = document.getElementById('consultation-doctor');
+    const timeSelect = document.getElementById('consultation-time');
+    
+    doctorSelect.innerHTML = '<option value="">Select Doctor</option>';
+    
+    doctors.forEach(doctor => {
+        const option = document.createElement('option');
+        option.value = doctor.email;
+        option.textContent = `${doctor.profile.name} - ${doctor.profile.designation || 'Doctor'}`;
+        doctorSelect.appendChild(option);
+    });
+    
+    // Update times when doctor is selected
+    doctorSelect.addEventListener('change', () => {
+        updateAvailableTimes(doctorSelect.value);
+    });
+}
+
+// Update available times based on selected doctor
+function updateAvailableTimes(doctorEmail) {
+    const users = getUsers();
+    const doctor = users.find(u => u.email === doctorEmail && u.role === 'doctor');
+    const timeSelect = document.getElementById('consultation-time');
+    
+    timeSelect.innerHTML = '<option value="">Select Time</option>';
+    
+    if (doctor && doctor.profile && doctor.profile.availableTimings) {
+        const availableTimings = doctor.profile.availableTimings;
+        const allTimes = ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00'];
+        
+        allTimes.forEach(time => {
+            if (availableTimings.includes(time)) {
+                const option = document.createElement('option');
+                option.value = time;
+                option.textContent = formatTime12Hour(time);
+                timeSelect.appendChild(option);
+            }
+        });
+    } else {
+        // Default times if doctor hasn't set availability
+        const defaultTimes = ['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00'];
+        defaultTimes.forEach(time => {
+            const option = document.createElement('option');
+            option.value = time;
+            option.textContent = formatTime12Hour(time);
+            timeSelect.appendChild(option);
+        });
+    }
 }
 
 function loadAppointments() {
@@ -1177,12 +1312,8 @@ function loadAppointments() {
     // Sort appointments by date
     appointments.sort((a, b) => new Date(a.date) - new Date(b.date));
     
-    const doctorNames = {
-        'dr-smith': 'Dr. Sarah Smith - Nutritionist',
-        'dr-johnson': 'Dr. Michael Johnson - Dietitian',
-        'dr-williams': 'Dr. Emily Williams - Wellness Coach',
-        'dr-brown': 'Dr. David Brown - Clinical Nutritionist'
-    };
+    // Get doctor names
+    const users = getUsers();
     
     appointmentsList.innerHTML = appointments.map(apt => {
         const appointmentDate = new Date(apt.date);
@@ -1194,11 +1325,16 @@ function loadAppointments() {
         });
         const time12hr = formatTime12Hour(apt.time);
         
+        const doctor = users.find(u => u.email === apt.doctor);
+        const doctorName = doctor && doctor.profile ? 
+            `${doctor.profile.name} - ${doctor.profile.designation || 'Doctor'}` : 
+            apt.doctor;
+        
         return `
             <div class="appointment-item">
                 <div class="appointment-header">
                     <div>
-                        <div class="appointment-doctor">${doctorNames[apt.doctor] || apt.doctor}</div>
+                        <div class="appointment-doctor">${doctorName}</div>
                         <div class="appointment-date-time">📅 ${formattedDate} at ${time12hr}</div>
                     </div>
                 </div>
@@ -1937,4 +2073,129 @@ function getAppointments() {
 function saveAppointments(appointments) {
     localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(appointments));
 }
+
+// Doctor Functions
+function handleDoctorProfileSave(e) {
+    e.preventDefault();
+    const name = document.getElementById('doctor-name').value;
+    const designation = document.getElementById('doctor-designation').value;
+    const timingCheckboxes = document.querySelectorAll('.timing-checkbox:checked');
+    const availableTimings = Array.from(timingCheckboxes).map(cb => cb.value);
+    
+    const users = getUsers();
+    const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
+    const userIndex = users.findIndex(u => u.email === currentUserEmail);
+    
+    if (userIndex !== -1) {
+        users[userIndex].profile = {
+            name,
+            designation,
+            availableTimings
+        };
+        saveUsers(users);
+        alert('Profile saved successfully!');
+        loadDoctorsForBooking(); // Update doctor list for bookings
+    }
+}
+
+function loadDoctorProfile() {
+    const users = getUsers();
+    const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
+    const doctor = users.find(u => u.email === currentUserEmail && u.role === 'doctor');
+    
+    if (doctor && doctor.profile) {
+        document.getElementById('doctor-name').value = doctor.profile.name || '';
+        document.getElementById('doctor-designation').value = doctor.profile.designation || '';
+        
+        const availableTimings = doctor.profile.availableTimings || [];
+        document.querySelectorAll('.timing-checkbox').forEach(checkbox => {
+            checkbox.checked = availableTimings.includes(checkbox.value);
+        });
+    }
+}
+
+function loadDoctorAppointments() {
+    const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
+    const appointments = getAppointments().filter(apt => apt.doctor === currentUserEmail);
+    
+    const appointmentsList = document.getElementById('doctor-appointments-list');
+    
+    if (appointments.length === 0) {
+        appointmentsList.innerHTML = `
+            <div class="empty-state">
+                <h3>No Appointments</h3>
+                <p>You don't have any appointments yet.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Sort appointments by date
+    appointments.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    appointmentsList.innerHTML = appointments.map(apt => {
+        const appointmentDate = new Date(apt.date);
+        const formattedDate = appointmentDate.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+        const time12hr = formatTime12Hour(apt.time);
+        
+        return `
+            <div class="appointment-item">
+                <div class="appointment-header">
+                    <div>
+                        <div class="appointment-doctor">${apt.patientName || 'Patient'}</div>
+                        <div class="appointment-date-time">📅 ${formattedDate} at ${time12hr}</div>
+                    </div>
+                </div>
+                <div class="appointment-patient-info">
+                    <strong>Email:</strong> ${apt.email}<br>
+                    <strong>Reason:</strong> ${apt.reason}
+                </div>
+                <span class="appointment-status ${apt.status}">${apt.status.charAt(0).toUpperCase() + apt.status.slice(1)}</span>
+                <div class="appointment-actions">
+                    ${apt.status === 'pending' ? `
+                        <button class="accept-appointment" onclick="acceptAppointment(${apt.id})">Accept</button>
+                        <button class="cancel-appointment" onclick="cancelAppointmentByDoctor(${apt.id})">Cancel</button>
+                    ` : apt.status === 'confirmed' ? `
+                        <button class="cancel-appointment" onclick="cancelAppointmentByDoctor(${apt.id})">Cancel</button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function acceptAppointment(id) {
+    const appointments = getAppointments();
+    const appointment = appointments.find(apt => apt.id === id);
+    
+    if (appointment) {
+        appointment.status = 'confirmed';
+        saveAppointments(appointments);
+        loadDoctorAppointments();
+        alert('Appointment accepted successfully!');
+    }
+}
+
+function cancelAppointmentByDoctor(id) {
+    if (confirm('Are you sure you want to cancel this appointment?')) {
+        const appointments = getAppointments();
+        const appointment = appointments.find(apt => apt.id === id);
+        
+        if (appointment) {
+            appointment.status = 'cancelled';
+            saveAppointments(appointments);
+            loadDoctorAppointments();
+            alert('Appointment cancelled successfully!');
+        }
+    }
+}
+
+// Make functions available globally
+window.acceptAppointment = acceptAppointment;
+window.cancelAppointmentByDoctor = cancelAppointmentByDoctor;
 
