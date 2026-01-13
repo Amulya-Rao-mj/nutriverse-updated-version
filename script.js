@@ -139,7 +139,8 @@ function handleSignup(e) {
             diet: '',
             height: '',
             weight: '',
-            plan: ''
+            plan: '',
+            allergies: []
         }
     };
     
@@ -155,6 +156,9 @@ function handleSignup(e) {
 // Handle profile save
 function handleProfileSave(e) {
     e.preventDefault();
+    const allergyCheckboxes = document.querySelectorAll('.allergy-checkbox:checked');
+    const allergies = Array.from(allergyCheckboxes).map(cb => cb.value);
+    
     const profile = {
         name: document.getElementById('profile-name').value,
         age: document.getElementById('profile-age').value,
@@ -162,7 +166,8 @@ function handleProfileSave(e) {
         diet: document.getElementById('profile-diet').value,
         height: document.getElementById('profile-height').value,
         weight: document.getElementById('profile-weight').value,
-        plan: document.getElementById('profile-plan').value
+        plan: document.getElementById('profile-plan').value,
+        allergies: allergies
     };
     
     const users = getUsers();
@@ -194,6 +199,12 @@ function loadUserProfile() {
         document.getElementById('profile-height').value = profile.height || '';
         document.getElementById('profile-weight').value = profile.weight || '';
         document.getElementById('profile-plan').value = profile.plan || '';
+        
+        // Load allergies
+        const allergies = profile.allergies || [];
+        document.querySelectorAll('.allergy-checkbox').forEach(checkbox => {
+            checkbox.checked = allergies.includes(checkbox.value);
+        });
         
         updateBMI();
         loadMeals();
@@ -310,7 +321,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'veg',
                 dietLabel: 'Vegetarian',
                 calories: 180,
-                plans: ['weight-loss', 'fat-loss']
+                plans: ['weight-loss', 'fat-loss'],
+                allergens: ['soy']
             },
             {
                 name: 'Chana Masala',
@@ -319,7 +331,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'veg',
                 dietLabel: 'Vegetarian',
                 calories: 350,
-                plans: ['muscle-building', 'weight-gain']
+                plans: ['muscle-building', 'weight-gain'],
+                allergens: []
             },
             {
                 name: 'Paneer Tikka',
@@ -328,7 +341,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'veg',
                 dietLabel: 'Vegetarian',
                 calories: 320,
-                plans: ['muscle-building', 'weight-gain', 'fat-loss']
+                plans: ['muscle-building', 'weight-gain', 'fat-loss'],
+                allergens: ['dairy']
             },
             {
                 name: 'Vegetable Biryani',
@@ -337,7 +351,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'veg',
                 dietLabel: 'Vegetarian',
                 calories: 450,
-                plans: ['weight-gain', 'muscle-building']
+                plans: ['weight-gain', 'muscle-building'],
+                allergens: []
             },
             {
                 name: 'Dal Makhani',
@@ -346,7 +361,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'veg',
                 dietLabel: 'Vegetarian',
                 calories: 280,
-                plans: ['muscle-building', 'weight-gain']
+                plans: ['muscle-building', 'weight-gain'],
+                allergens: ['dairy']
             },
             {
                 name: 'Vegetable Pulao',
@@ -355,7 +371,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'veg',
                 dietLabel: 'Vegetarian',
                 calories: 380,
-                plans: ['weight-gain', 'muscle-building']
+                plans: ['weight-gain', 'muscle-building'],
+                allergens: []
             },
             {
                 name: 'Green Salad Bowl',
@@ -364,7 +381,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'veg',
                 dietLabel: 'Vegetarian',
                 calories: 150,
-                plans: ['weight-loss', 'fat-loss']
+                plans: ['weight-loss', 'fat-loss'],
+                allergens: ['nuts']
             }
         ],
         'non-veg': [
@@ -375,7 +393,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'non-veg',
                 dietLabel: 'Non-Vegetarian',
                 calories: 250,
-                plans: ['weight-loss', 'fat-loss', 'muscle-building']
+                plans: ['weight-loss', 'fat-loss', 'muscle-building'],
+                allergens: []
             },
             {
                 name: 'Prawn Stir Fry',
@@ -384,7 +403,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'non-veg',
                 dietLabel: 'Non-Vegetarian',
                 calories: 200,
-                plans: ['weight-loss', 'fat-loss']
+                plans: ['weight-loss', 'fat-loss'],
+                allergens: ['seafood', 'soy']
             },
             {
                 name: 'Fish Curry',
@@ -393,7 +413,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'non-veg',
                 dietLabel: 'Non-Vegetarian',
                 calories: 320,
-                plans: ['fat-loss', 'muscle-building']
+                plans: ['fat-loss', 'muscle-building'],
+                allergens: ['seafood']
             },
             {
                 name: 'Mutton Biryani',
@@ -402,7 +423,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'non-veg',
                 dietLabel: 'Non-Vegetarian',
                 calories: 550,
-                plans: ['weight-gain', 'muscle-building']
+                plans: ['weight-gain', 'muscle-building'],
+                allergens: ['dairy']
             },
             {
                 name: 'Chicken Tikka Masala',
@@ -411,7 +433,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'non-veg',
                 dietLabel: 'Non-Vegetarian',
                 calories: 420,
-                plans: ['muscle-building', 'weight-gain']
+                plans: ['muscle-building', 'weight-gain'],
+                allergens: ['dairy']
             },
             {
                 name: 'Egg Curry',
@@ -420,7 +443,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'non-veg',
                 dietLabel: 'Non-Vegetarian',
                 calories: 280,
-                plans: ['muscle-building', 'weight-gain', 'fat-loss']
+                plans: ['muscle-building', 'weight-gain', 'fat-loss'],
+                allergens: ['eggs']
             },
             {
                 name: 'Grilled Salmon',
@@ -429,7 +453,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'non-veg',
                 dietLabel: 'Non-Vegetarian',
                 calories: 300,
-                plans: ['fat-loss', 'muscle-building']
+                plans: ['fat-loss', 'muscle-building'],
+                allergens: ['seafood']
             }
         ],
         'vegan': [
@@ -440,7 +465,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'vegan',
                 dietLabel: 'Vegan',
                 calories: 220,
-                plans: ['weight-loss', 'fat-loss']
+                plans: ['weight-loss', 'fat-loss'],
+                allergens: []
             },
             {
                 name: 'Lentil Curry',
@@ -449,7 +475,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'vegan',
                 dietLabel: 'Vegan',
                 calories: 250,
-                plans: ['muscle-building', 'weight-gain', 'fat-loss']
+                plans: ['muscle-building', 'weight-gain', 'fat-loss'],
+                allergens: []
             },
             {
                 name: 'Quinoa Buddha Bowl',
@@ -458,7 +485,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'vegan',
                 dietLabel: 'Vegan',
                 calories: 380,
-                plans: ['muscle-building', 'weight-gain']
+                plans: ['muscle-building', 'weight-gain'],
+                allergens: []
             },
             {
                 name: 'Vegan Pad Thai',
@@ -467,7 +495,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'vegan',
                 dietLabel: 'Vegan',
                 calories: 420,
-                plans: ['weight-gain', 'muscle-building']
+                plans: ['weight-gain', 'muscle-building'],
+                allergens: ['soy']
             },
             {
                 name: 'Tofu Scramble',
@@ -476,7 +505,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'vegan',
                 dietLabel: 'Vegan',
                 calories: 200,
-                plans: ['weight-loss', 'fat-loss', 'muscle-building']
+                plans: ['weight-loss', 'fat-loss', 'muscle-building'],
+                allergens: ['soy']
             },
             {
                 name: 'Vegan Pasta',
@@ -485,7 +515,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'vegan',
                 dietLabel: 'Vegan',
                 calories: 350,
-                plans: ['weight-gain', 'muscle-building']
+                plans: ['weight-gain', 'muscle-building'],
+                allergens: ['gluten']
             },
             {
                 name: 'Green Smoothie Bowl',
@@ -494,7 +525,8 @@ function getMealsByDietAndPlan(diet, plan) {
                 diet: 'vegan',
                 dietLabel: 'Vegan',
                 calories: 180,
-                plans: ['weight-loss', 'fat-loss']
+                plans: ['weight-loss', 'fat-loss'],
+                allergens: ['nuts']
             }
         ]
     };
@@ -502,10 +534,28 @@ function getMealsByDietAndPlan(diet, plan) {
     // Get base meals for diet type
     const baseMeals = allMeals[diet] || [];
     
-    // Filter meals based on plan
+    // Get user allergies
+    const users = getUsers();
+    const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
+    const user = users.find(u => u.email === currentUserEmail);
+    const userAllergies = (user && user.profile && user.profile.allergies) || [];
+    
+    // Filter meals based on plan and allergies
     return baseMeals.filter(meal => {
-        // Each meal has a plans array indicating which plans it's suitable for
-        return meal.plans && meal.plans.includes(plan);
+        // Check if meal is suitable for the plan
+        if (!meal.plans || !meal.plans.includes(plan)) {
+            return false;
+        }
+        
+        // Check if meal contains any allergens
+        if (userAllergies.length > 0 && meal.allergens) {
+            const hasAllergen = userAllergies.some(allergy => meal.allergens.includes(allergy));
+            if (hasAllergen) {
+                return false;
+            }
+        }
+        
+        return true;
     }).map(meal => {
         return {
             ...meal,
@@ -931,24 +981,50 @@ function generateWeeklyMealPlan() {
         return;
     }
     
+    // Get snack options (lighter meals suitable for snacks)
+    const snackMeals = availableMeals.filter(meal => parseInt(meal.calories) <= 250);
+    
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const mealTypes = ['Breakfast', 'Lunch', 'Dinner'];
+    const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Evening Snack'];
     const weeklyPlan = {};
     
     days.forEach(day => {
         weeklyPlan[day] = {
             Breakfast: null,
             Lunch: null,
-            Dinner: null
+            Dinner: null,
+            'Evening Snack': null
         };
         
+        const usedMeals = new Set(); // Track meals used in this day to prevent duplicates
+        
         mealTypes.forEach(mealType => {
-            // Randomly select a meal from available meals
-            const randomMeal = availableMeals[Math.floor(Math.random() * availableMeals.length)];
+            let selectedMeal;
+            let attempts = 0;
+            const maxAttempts = 50;
+            
+            // For snacks, prefer lighter meals
+            const mealPool = mealType === 'Evening Snack' && snackMeals.length > 0 
+                ? snackMeals 
+                : availableMeals;
+            
+            // Keep trying until we find a meal that hasn't been used today
+            do {
+                selectedMeal = mealPool[Math.floor(Math.random() * mealPool.length)];
+                attempts++;
+                
+                // If we've tried too many times, allow duplicates (better than no meal)
+                if (attempts >= maxAttempts) {
+                    break;
+                }
+            } while (usedMeals.has(selectedMeal.name));
+            
+            usedMeals.add(selectedMeal.name);
+            
             weeklyPlan[day][mealType] = {
-                name: randomMeal.name,
-                calories: parseInt(randomMeal.calories),
-                emoji: randomMeal.emoji
+                name: selectedMeal.name,
+                calories: parseInt(selectedMeal.calories),
+                emoji: selectedMeal.emoji
             };
         });
     });
@@ -966,7 +1042,8 @@ function displayMealPlan(mealPlan) {
         const dayMeals = mealPlan[day];
         const totalCalories = (dayMeals.Breakfast?.calories || 0) + 
                              (dayMeals.Lunch?.calories || 0) + 
-                             (dayMeals.Dinner?.calories || 0);
+                             (dayMeals.Dinner?.calories || 0) +
+                             (dayMeals['Evening Snack']?.calories || 0);
         
         return `
             <div class="day-card">
@@ -995,6 +1072,15 @@ function displayMealPlan(mealPlan) {
                         <div class="meal-item" onclick="showRecipeDetail('${dayMeals.Dinner.name}')" style="cursor: pointer;">
                             <span class="meal-item-name">${dayMeals.Dinner.emoji} ${dayMeals.Dinner.name}</span>
                             <span class="meal-item-calories">${dayMeals.Dinner.calories} cal</span>
+                        </div>
+                    ` : '<div class="meal-item"><span class="meal-item-name">Not planned</span></div>'}
+                </div>
+                <div class="meal-slot">
+                    <div class="meal-slot-title">🍎 Evening Snack</div>
+                    ${dayMeals['Evening Snack'] ? `
+                        <div class="meal-item" onclick="showRecipeDetail('${dayMeals['Evening Snack'].name}')" style="cursor: pointer;">
+                            <span class="meal-item-name">${dayMeals['Evening Snack'].emoji} ${dayMeals['Evening Snack'].name}</span>
+                            <span class="meal-item-calories">${dayMeals['Evening Snack'].calories} cal</span>
                         </div>
                     ` : '<div class="meal-item"><span class="meal-item-name">Not planned</span></div>'}
                 </div>
