@@ -1,21 +1,97 @@
-// User data storage (using localStorage)
-const STORAGE_KEY = "nutriverse_users";
-const CURRENT_USER_KEY = "nutriverse_current_user";
+// API Configuration
+const API_BASE_URL = "http://127.0.0.1:5000/api";
+const TOKEN_KEY = "nutriverse_token";
 
 // Initialize
 document.addEventListener("DOMContentLoaded", () => {
   checkAuth();
   setupEventListeners();
+
+  // Add BMI listeners
+  const heightInput = document.getElementById("profile-height");
+  const weightInput = document.getElementById("profile-weight");
+  if (heightInput && weightInput) {
+    heightInput.addEventListener("input", updateBMI);
+    weightInput.addEventListener("input", updateBMI);
+  }
 });
 
+// Helper for authenticated API requests
+async function fetchWithAuth(endpoint, options = {}) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = {
+    "Content-Type": "application/json",
+    ...options.headers,
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      if (response.status === 401 && !endpoint.includes("/auth/login")) {
+        // Token expired or invalid
+        localStorage.removeItem(TOKEN_KEY);
+        showAuth();
+        throw new Error("Session expired. Please login again.");
+      }
+      throw new Error(data.message || "Something went wrong");
+    }
+
+    return data;
+  } catch (error) {
+    if (error.message !== "Session expired. Please login again.") {
+      if (error.message.includes("Failed to fetch")) {
+        alert(
+          "Connection Error: Cannot reach the backend server.\n\n1. Make sure you ran 'npm start' in the backend folder.\n2. Ensure the backend is running on port 5000.",
+        );
+      }
+      console.error("API Error:", error);
+    }
+    throw error;
+  }
+}
+
 // Check if user is logged in
-function checkAuth() {
-  const currentUser = localStorage.getItem(CURRENT_USER_KEY);
-  if (currentUser) {
-    showDashboard();
-    loadUserProfile();
-  } else {
+async function checkAuth() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
     showAuth();
+    return;
+  }
+
+  try {
+    // Verify token and get user info
+    const data = await fetchWithAuth("/auth/me");
+    const user = data.user;
+
+    showDashboard();
+    if (user.role === "doctor") {
+      setupDoctorView();
+    } else {
+      document
+        .querySelectorAll(".nav-btn[data-page]:not(.doctor-nav)")
+        .forEach((btn) => (btn.style.display = "block"));
+      document
+        .querySelectorAll(".doctor-nav")
+        .forEach((btn) => (btn.style.display = "none"));
+      loadUserProfile();
+    }
+  } catch (error) {
+    // Error handled in fetchWithAuth (redirects to auth if 401)
+    if (!document.getElementById("auth-section").classList.contains("hidden")) {
+      // Already on auth screen
+    } else {
+      showAuth();
+    }
   }
 }
 
@@ -40,6 +116,11 @@ function setupEventListeners() {
   document
     .getElementById("profileForm")
     .addEventListener("submit", handleProfileSave);
+
+  const doctorProfileForm = document.getElementById("doctorProfileForm");
+  if (doctorProfileForm) {
+    doctorProfileForm.addEventListener("submit", handleDoctorProfileSave);
+  }
 
   // Navigation
   document.querySelectorAll(".nav-btn[data-page]").forEach((btn) => {
@@ -66,6 +147,12 @@ function setupEventListeners() {
   if (consultationForm) {
     consultationForm.addEventListener("submit", handleConsultationBooking);
   }
+
+  // Add Recipe
+  const addRecipeForm = document.getElementById("addRecipeForm");
+  if (addRecipeForm) {
+    addRecipeForm.addEventListener("submit", handleAddRecipeSubmit);
+  }
 }
 
 // Switch between login and signup forms
@@ -83,63 +170,108 @@ function switchAuthForm(form) {
 }
 
 // Handle login
-function handleLogin(e) {
+async function handleLogin(e) {
   e.preventDefault();
-  const email = document.getElementById("login-email").value;
-  const password = document.getElementById("login-password").value;
+  console.log("Login form submitted"); // Debug log
 
-  const users = getUsers();
-  const user = users.find((u) => u.email === email && u.password === password);
+  // Visual feedback
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const originalText = submitBtn.innerText;
+  submitBtn.innerText = "Logging in...";
+  submitBtn.disabled = true;
 
-  if (user) {
-    localStorage.setItem(CURRENT_USER_KEY, email);
-    showDashboard();
-    loadUserProfile();
+  const emailInput = document.getElementById("login-email");
+  const passwordInput = document.getElementById("login-password");
+  const roleInput = document.getElementById("login-role");
+
+  if (!emailInput || !passwordInput) {
+    console.error("Login inputs not found");
+    submitBtn.innerText = originalText;
+    submitBtn.disabled = false;
+    return;
+  }
+
+  const email = emailInput.value;
+  const password = passwordInput.value;
+  const role = roleInput ? roleInput.value : "user";
+
+  try {
+    const data = await fetchWithAuth("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password, role }),
+    });
+
+    localStorage.setItem(TOKEN_KEY, data.token);
     document.getElementById("loginForm").reset();
-  } else {
-    alert("Invalid email or password!");
+
+    // Use user data directly from login response to avoid extra API call failure
+    const user = data.user;
+    showDashboard();
+
+    if (user.role === "doctor") {
+      setupDoctorView();
+    } else {
+      document
+        .querySelectorAll(".nav-btn[data-page]:not(.doctor-nav)")
+        .forEach((btn) => (btn.style.display = "block"));
+      document
+        .querySelectorAll(".doctor-nav")
+        .forEach((btn) => (btn.style.display = "none"));
+      loadUserProfile();
+      switchPage("profile");
+    }
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    submitBtn.innerText = originalText;
+    submitBtn.disabled = false;
   }
 }
 
 // Handle signup
-function handleSignup(e) {
+async function handleSignup(e) {
   e.preventDefault();
-  const name = document.getElementById("signup-name").value;
-  const email = document.getElementById("signup-email").value;
-  const password = document.getElementById("signup-password").value;
+  console.log("Signup form submitted"); // Debug log
 
-  const users = getUsers();
+  const nameInput = document.getElementById("signup-name");
+  const emailInput = document.getElementById("signup-email");
+  const roleInput = document.getElementById("signup-role");
+  const passwordInput = document.getElementById("signup-password");
 
-  if (users.find((u) => u.email === email)) {
-    alert("Email already registered!");
-    return;
+  const name = nameInput ? nameInput.value : "";
+  const email = emailInput ? emailInput.value : "";
+  const role = roleInput ? roleInput.value : "user";
+  const password = passwordInput ? passwordInput.value : "";
+
+  try {
+    const data = await fetchWithAuth("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password, role }),
+    });
+
+    localStorage.setItem(TOKEN_KEY, data.token);
+    document.getElementById("signupForm").reset();
+
+    showDashboard();
+    if (role === "doctor") {
+      setupDoctorView();
+    } else {
+      document
+        .querySelectorAll(".nav-btn[data-page]:not(.doctor-nav)")
+        .forEach((btn) => (btn.style.display = "block"));
+      document
+        .querySelectorAll(".doctor-nav")
+        .forEach((btn) => (btn.style.display = "none"));
+      switchPage("profile");
+      // New users have empty profiles, so nothing to load yet
+    }
+  } catch (error) {
+    alert(error.message);
   }
-
-  const newUser = {
-    email,
-    password,
-    profile: {
-      name,
-      age: "",
-      gender: "",
-      diet: "",
-      height: "",
-      weight: "",
-      plan: "",
-    },
-  };
-
-  users.push(newUser);
-  saveUsers(users);
-  localStorage.setItem(CURRENT_USER_KEY, email);
-
-  showDashboard();
-  loadUserProfile();
-  document.getElementById("signupForm").reset();
 }
 
 // Handle profile save
-function handleProfileSave(e) {
+async function handleProfileSave(e) {
   e.preventDefault();
   const profile = {
     name: document.getElementById("profile-name").value,
@@ -151,28 +283,26 @@ function handleProfileSave(e) {
     plan: document.getElementById("profile-plan").value,
   };
 
-  const users = getUsers();
-  const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
-  const userIndex = users.findIndex((u) => u.email === currentUserEmail);
+  try {
+    await fetchWithAuth("/profile", {
+      method: "PUT",
+      body: JSON.stringify(profile),
+    });
 
-  if (userIndex !== -1) {
-    users[userIndex].profile = profile;
-    saveUsers(users);
     updateBMI();
     alert("Profile saved successfully!");
-    loadMeals(); // Refresh meals when profile is updated
-    loadExercises(); // Refresh exercises when profile is updated
+    // Refresh data if needed
+  } catch (error) {
+    alert("Failed to save profile: " + error.message);
   }
 }
 
 // Load user profile
-function loadUserProfile() {
-  const users = getUsers();
-  const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
-  const user = users.find((u) => u.email === currentUserEmail);
+async function loadUserProfile() {
+  try {
+    const user = await fetchWithAuth("/profile");
+    const profile = user.profile || {};
 
-  if (user && user.profile) {
-    const profile = user.profile;
     document.getElementById("profile-name").value = profile.name || "";
     document.getElementById("profile-age").value = profile.age || "";
     document.getElementById("profile-gender").value = profile.gender || "";
@@ -182,8 +312,8 @@ function loadUserProfile() {
     document.getElementById("profile-plan").value = profile.plan || "";
 
     updateBMI();
-    loadMeals();
-    loadExercises();
+  } catch (error) {
+    console.error("Error loading profile:", error);
   }
 }
 
@@ -225,50 +355,33 @@ function updateBMI() {
 }
 
 // Load meals based on diet type and plan
-function loadMeals() {
-  const users = getUsers();
-  const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
-  const user = users.find((u) => u.email === currentUserEmail);
-
+async function loadMeals() {
   const mealsContainer = document.getElementById("meals-container");
+  mealsContainer.innerHTML = '<div class="loading">Loading meals...</div>';
+  loadCommunityMeals();
 
-  if (!user || !user.profile || !user.profile.diet) {
-    mealsContainer.innerHTML = `
-            <div class="empty-state">
-                <h3>Complete Your Profile</h3>
-                <p>Please fill in your diet type in the profile section to get personalized meal suggestions.</p>
-            </div>
-        `;
-    return;
-  }
+  try {
+    const data = await fetchWithAuth("/meals");
 
-  if (!user.profile.plan) {
-    mealsContainer.innerHTML = `
-            <div class="empty-state">
-                <h3>Select Your Fitness Plan</h3>
-                <p>Please select a fitness plan in your profile to get personalized meal suggestions.</p>
-            </div>
-        `;
-    return;
-  }
+    if (data.message) {
+      mealsContainer.innerHTML = `<div class="empty-state"><h3>Notice</h3><p>${data.message}</p></div>`;
+      return;
+    }
+    const meals = data.meals || [];
 
-  const diet = user.profile.diet;
-  const plan = user.profile.plan;
-  const meals = getMealsByDietAndPlan(diet, plan);
-
-  if (meals.length === 0) {
-    mealsContainer.innerHTML = `
+    if (meals.length === 0) {
+      mealsContainer.innerHTML = `
             <div class="empty-state">
                 <h3>No Meals Available</h3>
                 <p>We're working on adding more meal suggestions for your diet type and plan.</p>
             </div>
         `;
-    return;
-  }
+      return;
+    }
 
-  mealsContainer.innerHTML = meals
-    .map(
-      (meal) => `
+    mealsContainer.innerHTML = meals
+      .map(
+        (meal) => `
         <div class="meal-card">
             <div class="meal-image">${meal.emoji}</div>
             <div class="meal-content">
@@ -281,295 +394,139 @@ function loadMeals() {
                 </div>
             </div>
         </div>
-    `
-    )
-    .join("");
+    `,
+      )
+      .join("");
+  } catch (error) {
+    mealsContainer.innerHTML = `<div class="empty-state"><h3>Error</h3><p>${error.message}</p></div>`;
+  }
 }
 
-// Get meals by diet type and plan
-function getMealsByDietAndPlan(diet, plan) {
-  const allMeals = {
-    veg: [
-      {
-        name: "Vegetable Stir Fry",
-        description:
-          "Fresh seasonal vegetables stir-fried with garlic, ginger, and light soy sauce. Low calorie, high fiber.",
-        emoji: "🥗",
-        diet: "veg",
-        dietLabel: "Vegetarian",
-        calories: 180,
-        plans: ["weight-loss", "fat-loss"],
-      },
-      {
-        name: "Chana Masala",
-        description:
-          "Spiced chickpeas cooked in a tangy tomato-based gravy, rich in protein. Perfect for muscle building.",
-        emoji: "🍲",
-        diet: "veg",
-        dietLabel: "Vegetarian",
-        calories: 350,
-        plans: ["muscle-building", "weight-gain"],
-      },
-      {
-        name: "Paneer Tikka",
-        description:
-          "Marinated cottage cheese cubes grilled to perfection. High protein, moderate calories.",
-        emoji: "🍢",
-        diet: "veg",
-        dietLabel: "Vegetarian",
-        calories: 320,
-        plans: ["muscle-building", "weight-gain", "fat-loss"],
-      },
-      {
-        name: "Vegetable Biryani",
-        description:
-          "Aromatic basmati rice cooked with mixed vegetables, spices, and herbs. A complete meal packed with nutrients.",
-        emoji: "🍛",
-        diet: "veg",
-        dietLabel: "Vegetarian",
-        calories: 450,
-        plans: ["weight-gain", "muscle-building"],
-      },
-      {
-        name: "Dal Makhani",
-        description:
-          "Creamy black lentils cooked with butter and spices. High protein, good for muscle building.",
-        emoji: "🥘",
-        diet: "veg",
-        dietLabel: "Vegetarian",
-        calories: 280,
-        plans: ["muscle-building", "weight-gain"],
-      },
-      {
-        name: "Vegetable Pulao",
-        description:
-          "Fragrant rice cooked with vegetables and whole spices. Balanced meal for weight maintenance.",
-        emoji: "🍚",
-        diet: "veg",
-        dietLabel: "Vegetarian",
-        calories: 380,
-        plans: ["weight-gain", "muscle-building"],
-      },
-      {
-        name: "Green Salad Bowl",
-        description:
-          "Fresh mixed greens with vegetables, nuts, and light dressing. Perfect for weight loss.",
-        emoji: "🥬",
-        diet: "veg",
-        dietLabel: "Vegetarian",
-        calories: 150,
-        plans: ["weight-loss", "fat-loss"],
-      },
-    ],
-    "non-veg": [
-      {
-        name: "Grilled Chicken Breast",
-        description:
-          "Tender chicken breast marinated in herbs and spices, grilled to perfection. High in protein, low in fat.",
-        emoji: "🍗",
-        diet: "non-veg",
-        dietLabel: "Non-Vegetarian",
-        calories: 250,
-        plans: ["weight-loss", "fat-loss", "muscle-building"],
-      },
-      {
-        name: "Prawn Stir Fry",
-        description:
-          "Fresh prawns stir-fried with vegetables, garlic, and ginger in a light sauce. Low calorie, high protein.",
-        emoji: "🦐",
-        diet: "non-veg",
-        dietLabel: "Non-Vegetarian",
-        calories: 200,
-        plans: ["weight-loss", "fat-loss"],
-      },
-      {
-        name: "Fish Curry",
-        description:
-          "Fresh fish cooked in a spicy coconut-based curry with aromatic spices. Omega-3 rich, good for fat loss.",
-        emoji: "🐟",
-        diet: "non-veg",
-        dietLabel: "Non-Vegetarian",
-        calories: 320,
-        plans: ["fat-loss", "muscle-building"],
-      },
-      {
-        name: "Mutton Biryani",
-        description:
-          "Fragrant basmati rice layered with tender mutton, spices, and fried onions. High calorie for weight gain.",
-        emoji: "🍛",
-        diet: "non-veg",
-        dietLabel: "Non-Vegetarian",
-        calories: 550,
-        plans: ["weight-gain", "muscle-building"],
-      },
-      {
-        name: "Chicken Tikka Masala",
-        description:
-          "Tender chicken pieces in a creamy tomato-based curry with aromatic spices. Protein-rich meal.",
-        emoji: "🍗",
-        diet: "non-veg",
-        dietLabel: "Non-Vegetarian",
-        calories: 420,
-        plans: ["muscle-building", "weight-gain"],
-      },
-      {
-        name: "Egg Curry",
-        description:
-          "Hard-boiled eggs in a spicy onion-tomato gravy, rich in protein. Perfect for muscle building.",
-        emoji: "🥚",
-        diet: "non-veg",
-        dietLabel: "Non-Vegetarian",
-        calories: 280,
-        plans: ["muscle-building", "weight-gain", "fat-loss"],
-      },
-      {
-        name: "Grilled Salmon",
-        description:
-          "Omega-3 rich salmon grilled with herbs. Excellent for fat loss and muscle building.",
-        emoji: "🐟",
-        diet: "non-veg",
-        dietLabel: "Non-Vegetarian",
-        calories: 300,
-        plans: ["fat-loss", "muscle-building"],
-      },
-    ],
-    vegan: [
-      {
-        name: "Chickpea Salad",
-        description:
-          "Fresh chickpeas mixed with vegetables, herbs, and a lemon-olive oil dressing. Low calorie, high fiber.",
-        emoji: "🥙",
-        diet: "vegan",
-        dietLabel: "Vegan",
-        calories: 220,
-        plans: ["weight-loss", "fat-loss"],
-      },
-      {
-        name: "Lentil Curry",
-        description:
-          "Protein-rich red lentils cooked with tomatoes, onions, and aromatic spices. Great for muscle building.",
-        emoji: "🍲",
-        diet: "vegan",
-        dietLabel: "Vegan",
-        calories: 250,
-        plans: ["muscle-building", "weight-gain", "fat-loss"],
-      },
-      {
-        name: "Quinoa Buddha Bowl",
-        description:
-          "Nutritious quinoa topped with roasted vegetables, chickpeas, and tahini dressing. Complete protein source.",
-        emoji: "🥗",
-        diet: "vegan",
-        dietLabel: "Vegan",
-        calories: 380,
-        plans: ["muscle-building", "weight-gain"],
-      },
-      {
-        name: "Vegan Pad Thai",
-        description:
-          "Rice noodles stir-fried with tofu, vegetables, and a tangy tamarind sauce. High calorie for weight gain.",
-        emoji: "🍜",
-        diet: "vegan",
-        dietLabel: "Vegan",
-        calories: 420,
-        plans: ["weight-gain", "muscle-building"],
-      },
-      {
-        name: "Tofu Scramble",
-        description:
-          "Scrambled tofu with vegetables, turmeric, and spices - a protein-packed breakfast.",
-        emoji: "🍳",
-        diet: "vegan",
-        dietLabel: "Vegan",
-        calories: 200,
-        plans: ["weight-loss", "fat-loss", "muscle-building"],
-      },
-      {
-        name: "Vegan Pasta",
-        description:
-          "Whole wheat pasta with marinara sauce, vegetables, and nutritional yeast. Good for weight gain.",
-        emoji: "🍝",
-        diet: "vegan",
-        dietLabel: "Vegan",
-        calories: 350,
-        plans: ["weight-gain", "muscle-building"],
-      },
-      {
-        name: "Green Smoothie Bowl",
-        description:
-          "Nutrient-dense smoothie bowl with fruits, greens, and plant-based protein. Low calorie option.",
-        emoji: "🥤",
-        diet: "vegan",
-        dietLabel: "Vegan",
-        calories: 180,
-        plans: ["weight-loss", "fat-loss"],
-      },
-    ],
-  };
+// Load community recipes
+async function loadCommunityMeals() {
+  const container = document.getElementById("community-meals-container");
+  if (!container) return;
 
-  // Get base meals for diet type
-  const baseMeals = allMeals[diet] || [];
+  container.innerHTML =
+    '<div class="loading">Loading community recipes...</div>';
 
-  // Filter meals based on plan
-  return baseMeals
-    .filter((meal) => {
-      // Each meal has a plans array indicating which plans it's suitable for
-      return meal.plans && meal.plans.includes(plan);
-    })
-    .map((meal) => {
-      return {
-        ...meal,
-        calories: meal.calories.toString(),
-        planLabel: getPlanLabel(plan),
-      };
-    });
+  try {
+    const data = await fetchWithAuth("/meals/community");
+    const recipes = data.recipes || [];
+
+    if (recipes.length === 0) {
+      container.innerHTML =
+        '<div class="empty-state"><p>No community recipes yet. Be the first to add one!</p></div>';
+      return;
+    }
+
+    container.innerHTML = recipes
+      .map(
+        (recipe) => `
+      <div class="meal-card">
+        <div class="meal-image">${recipe.emoji || "🍲"}</div>
+        <div class="meal-content">
+          <h3 class="meal-title">${recipe.name}</h3>
+          <p class="meal-description">${recipe.description}</p>
+          <div class="meal-tags">
+            <span class="meal-tag ${recipe.diet}">${
+              recipe.diet === "non-veg"
+                ? "Non-Veg"
+                : recipe.diet === "veg"
+                  ? "Veg"
+                  : "Vegan"
+            }</span>
+            <span class="meal-tag">${recipe.calories} cal</span>
+            <span class="meal-tag">By ${
+              recipe.createdBy?.profile?.name || "User"
+            }</span>
+          </div>
+        </div>
+      </div>
+    `,
+      )
+      .join("");
+  } catch (error) {
+    console.error("Error loading community meals:", error);
+    container.innerHTML = `<div class="empty-state"><p>Error loading recipes: ${error.message}</p></div>`;
+  }
 }
 
-// Get plan label
-function getPlanLabel(plan) {
-  const labels = {
-    "weight-loss": "Weight Loss",
-    "weight-gain": "Weight Gain",
-    "fat-loss": "Fat Loss",
-    "muscle-building": "Muscle Building",
-  };
-  return labels[plan] || plan;
+// Add Recipe Modal Functions
+function openAddRecipeModal() {
+  document.getElementById("add-recipe-modal").classList.remove("hidden");
 }
 
-// Load exercises based on plan
-function loadExercises() {
-  const users = getUsers();
-  const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
-  const user = users.find((u) => u.email === currentUserEmail);
+function closeAddRecipeModal() {
+  document.getElementById("add-recipe-modal").classList.add("hidden");
+}
 
-  const exercisesContainer = document.getElementById("exercises-container");
+async function handleAddRecipeSubmit(e) {
+  e.preventDefault();
 
-  if (!user || !user.profile || !user.profile.plan) {
-    exercisesContainer.innerHTML = `
-            <div class="empty-state">
-                <h3>Select Your Fitness Plan</h3>
-                <p>Please select a fitness plan in your profile to get personalized exercise recommendations.</p>
-            </div>
-        `;
+  const calories = parseInt(document.getElementById("recipe-calories").value);
+  if (isNaN(calories)) {
+    alert("Please enter a valid number for calories");
     return;
   }
 
-  const plan = user.profile.plan;
-  const exercises = getExercisesByPlan(plan);
+  const recipe = {
+    name: document.getElementById("recipe-name").value,
+    description: document.getElementById("recipe-description").value,
+    calories: calories,
+    diet: document.getElementById("recipe-diet").value,
+    ingredients: document.getElementById("recipe-ingredients").value,
+    instructions: document.getElementById("recipe-instructions").value,
+    emoji: "🍲", // Default emoji
+  };
 
-  if (exercises.length === 0) {
-    exercisesContainer.innerHTML = `
+  try {
+    await fetchWithAuth("/meals", {
+      method: "POST",
+      body: JSON.stringify(recipe),
+    });
+
+    closeAddRecipeModal();
+    document.getElementById("addRecipeForm").reset();
+    alert("Recipe added successfully!");
+    loadCommunityMeals();
+  } catch (error) {
+    alert("Failed to add recipe: " + error.message);
+  }
+}
+
+// Make global for onclick handlers
+window.openAddRecipeModal = openAddRecipeModal;
+window.closeAddRecipeModal = closeAddRecipeModal;
+
+// Load exercises based on plan
+async function loadExercises() {
+  const exercisesContainer = document.getElementById("exercises-container");
+  exercisesContainer.innerHTML =
+    '<div class="loading">Loading exercises...</div>';
+
+  try {
+    const data = await fetchWithAuth("/exercises");
+
+    if (data.message) {
+      exercisesContainer.innerHTML = `<div class="empty-state"><h3>Notice</h3><p>${data.message}</p></div>`;
+      return;
+    }
+    const exercises = data.exercises || [];
+
+    if (exercises.length === 0) {
+      exercisesContainer.innerHTML = `
             <div class="empty-state">
                 <h3>No Exercises Available</h3>
                 <p>We're working on adding more exercise recommendations for your plan.</p>
             </div>
         `;
-    return;
-  }
+      return;
+    }
 
-  exercisesContainer.innerHTML = exercises
-    .map(
-      (exercise) => `
+    exercisesContainer.innerHTML = exercises
+      .map(
+        (exercise) => `
         <div class="exercise-card">
             <div class="exercise-header">
                 <div class="exercise-icon">${exercise.emoji}</div>
@@ -597,255 +554,12 @@ function loadExercises() {
                 </div>
             </div>
         </div>
-    `
-    )
-    .join("");
-}
-
-// Get exercises by plan
-function getExercisesByPlan(plan) {
-  const allExercises = {
-    "weight-loss": [
-      {
-        name: "Cardio Running",
-        description:
-          "Moderate to high-intensity running helps burn calories and improve cardiovascular health. Start with 20-30 minutes.",
-        emoji: "🏃",
-        sets: "N/A",
-        reps: "N/A",
-        duration: "20-45 minutes",
-        frequency: "4-5 times/week",
-      },
-      {
-        name: "HIIT Workout",
-        description:
-          "High-Intensity Interval Training alternates between intense bursts and recovery periods. Very effective for weight loss.",
-        emoji: "⚡",
-        sets: "4-6 rounds",
-        reps: "30-60 sec intervals",
-        duration: "20-30 minutes",
-        frequency: "3-4 times/week",
-      },
-      {
-        name: "Cycling",
-        description:
-          "Low-impact cardio exercise that burns calories while being gentle on joints. Great for beginners.",
-        emoji: "🚴",
-        sets: "N/A",
-        reps: "N/A",
-        duration: "30-60 minutes",
-        frequency: "4-5 times/week",
-      },
-      {
-        name: "Jump Rope",
-        description:
-          "Simple yet effective cardio exercise that burns calories quickly. Can be done anywhere.",
-        emoji: "🦘",
-        sets: "5-10 sets",
-        reps: "30-60 seconds",
-        duration: "15-20 minutes",
-        frequency: "5-6 times/week",
-      },
-      {
-        name: "Swimming",
-        description:
-          "Full-body workout that burns calories while being easy on joints. Excellent for weight loss.",
-        emoji: "🏊",
-        sets: "N/A",
-        reps: "N/A",
-        duration: "30-45 minutes",
-        frequency: "3-4 times/week",
-      },
-      {
-        name: "Bodyweight Circuit",
-        description:
-          "Combination of push-ups, squats, lunges, and planks. No equipment needed, burns calories effectively.",
-        emoji: "💪",
-        sets: "3-4 rounds",
-        reps: "10-15 each",
-        duration: "20-30 minutes",
-        frequency: "4-5 times/week",
-      },
-    ],
-    "weight-gain": [
-      {
-        name: "Compound Lifts",
-        description:
-          "Squats, deadlifts, and bench presses work multiple muscle groups. Essential for building mass.",
-        emoji: "🏋️",
-        sets: "4-5 sets",
-        reps: "6-10 reps",
-        duration: "45-60 minutes",
-        frequency: "3-4 times/week",
-      },
-      {
-        name: "Progressive Overload",
-        description:
-          "Gradually increase weight or reps over time. Key principle for muscle and weight gain.",
-        emoji: "📈",
-        sets: "3-5 sets",
-        reps: "8-12 reps",
-        duration: "60 minutes",
-        frequency: "4-5 times/week",
-      },
-      {
-        name: "Isolation Exercises",
-        description:
-          "Target specific muscle groups with bicep curls, tricep extensions, and leg curls.",
-        emoji: "🎯",
-        sets: "3-4 sets",
-        reps: "10-15 reps",
-        duration: "30-45 minutes",
-        frequency: "4-5 times/week",
-      },
-      {
-        name: "Resistance Training",
-        description:
-          "Use weights, resistance bands, or bodyweight to build muscle mass and strength.",
-        emoji: "🏋️‍♀️",
-        sets: "3-5 sets",
-        reps: "8-12 reps",
-        duration: "45-60 minutes",
-        frequency: "4-5 times/week",
-      },
-      {
-        name: "Full Body Workout",
-        description:
-          "Work all major muscle groups in one session. Great for overall muscle development.",
-        emoji: "🔥",
-        sets: "3-4 sets",
-        reps: "8-12 reps",
-        duration: "60 minutes",
-        frequency: "3-4 times/week",
-      },
-    ],
-    "fat-loss": [
-      {
-        name: "Strength Training",
-        description:
-          "Build muscle to increase metabolism. More muscle means more calories burned at rest.",
-        emoji: "💪",
-        sets: "3-4 sets",
-        reps: "8-12 reps",
-        duration: "45 minutes",
-        frequency: "3-4 times/week",
-      },
-      {
-        name: "Circuit Training",
-        description:
-          "Combine strength and cardio exercises in quick succession. Burns fat while building muscle.",
-        emoji: "🔄",
-        sets: "3-5 rounds",
-        reps: "10-15 each",
-        duration: "30-40 minutes",
-        frequency: "4-5 times/week",
-      },
-      {
-        name: "Rowing",
-        description:
-          "Full-body cardio exercise that builds strength while burning calories. Excellent for fat loss.",
-        emoji: "🚣",
-        sets: "N/A",
-        reps: "N/A",
-        duration: "20-30 minutes",
-        frequency: "4-5 times/week",
-      },
-      {
-        name: "Stair Climbing",
-        description:
-          "High-intensity exercise that targets legs and glutes while burning significant calories.",
-        emoji: "📶",
-        sets: "5-10 sets",
-        reps: "2-3 minutes",
-        duration: "20-30 minutes",
-        frequency: "4-5 times/week",
-      },
-      {
-        name: "Kettlebell Swings",
-        description:
-          "Explosive full-body movement that builds power and burns fat effectively.",
-        emoji: "⚖️",
-        sets: "4-5 sets",
-        reps: "15-20 reps",
-        duration: "20-30 minutes",
-        frequency: "3-4 times/week",
-      },
-      {
-        name: "Yoga Flow",
-        description:
-          "Dynamic yoga sequences that build strength, flexibility, and burn calories.",
-        emoji: "🧘",
-        sets: "N/A",
-        reps: "N/A",
-        duration: "30-45 minutes",
-        frequency: "4-5 times/week",
-      },
-    ],
-    "muscle-building": [
-      {
-        name: "Heavy Lifting",
-        description:
-          "Focus on compound movements with heavy weights. Squats, deadlifts, bench press, and rows.",
-        emoji: "🏋️",
-        sets: "4-6 sets",
-        reps: "4-8 reps",
-        duration: "60-90 minutes",
-        frequency: "4-5 times/week",
-      },
-      {
-        name: "Progressive Overload",
-        description:
-          "Systematically increase weight, reps, or sets over time. Essential for muscle growth.",
-        emoji: "📈",
-        sets: "3-5 sets",
-        reps: "6-12 reps",
-        duration: "60 minutes",
-        frequency: "4-6 times/week",
-      },
-      {
-        name: "Split Training",
-        description:
-          "Focus on different muscle groups each day. Allows for better recovery and growth.",
-        emoji: "🎯",
-        sets: "4-5 sets",
-        reps: "8-12 reps",
-        duration: "60 minutes",
-        frequency: "5-6 times/week",
-      },
-      {
-        name: "Isolation Exercises",
-        description:
-          "Target specific muscles with focused movements. Bicep curls, tricep extensions, leg curls.",
-        emoji: "🎯",
-        sets: "3-4 sets",
-        reps: "10-15 reps",
-        duration: "30-45 minutes",
-        frequency: "5-6 times/week",
-      },
-      {
-        name: "Pull-Ups & Dips",
-        description:
-          "Bodyweight exercises that build upper body strength. Excellent for muscle building.",
-        emoji: "🤸",
-        sets: "3-5 sets",
-        reps: "8-12 reps",
-        duration: "20-30 minutes",
-        frequency: "3-4 times/week",
-      },
-      {
-        name: "Leg Day Focus",
-        description:
-          "Dedicated leg training with squats, lunges, and leg presses. Builds lower body mass.",
-        emoji: "🦵",
-        sets: "4-5 sets",
-        reps: "8-12 reps",
-        duration: "60 minutes",
-        frequency: "2 times/week",
-      },
-    ],
-  };
-
-  return allExercises[plan] || [];
+    `,
+      )
+      .join("");
+  } catch (error) {
+    exercisesContainer.innerHTML = `<div class="empty-state"><h3>Error</h3><p>${error.message}</p></div>`;
+  }
 }
 
 // Switch page
@@ -872,6 +586,11 @@ function switchPage(page) {
   } else if (page === "consultation") {
     loadAppointments();
     setMinDate();
+    populateDoctorDropdown();
+  } else if (page === "doctor") {
+    loadDoctorAppointments();
+  } else if (page === "doctor-profile") {
+    loadDoctorProfile();
   }
 }
 
@@ -890,126 +609,48 @@ function showDashboard() {
 // Handle logout
 function handleLogout() {
   if (confirm("Are you sure you want to logout?")) {
-    localStorage.removeItem(CURRENT_USER_KEY);
+    localStorage.removeItem(TOKEN_KEY);
     showAuth();
     document.getElementById("loginForm").reset();
   }
 }
 
-// Get users from storage
-function getUsers() {
-  const users = localStorage.getItem(STORAGE_KEY);
-  return users ? JSON.parse(users) : [];
-}
-
-// Save users to storage
-function saveUsers(users) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-}
-
-// Add BMI calculation on input change
-document.addEventListener("DOMContentLoaded", () => {
-  const heightInput = document.getElementById("profile-height");
-  const weightInput = document.getElementById("profile-weight");
-
-  if (heightInput && weightInput) {
-    heightInput.addEventListener("input", updateBMI);
-    weightInput.addEventListener("input", updateBMI);
-  }
-});
-
 // Meal Planner Functions
-const MEAL_PLANNER_KEY = "nutriverse_meal_planner";
-
-function loadMealPlanner() {
-  const users = getUsers();
-  const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
-  const user = users.find((u) => u.email === currentUserEmail);
-
+async function loadMealPlanner() {
   const plannerContainer = document.getElementById("meal-planner-container");
+  plannerContainer.innerHTML =
+    '<div class="loading">Loading meal plan...</div>';
 
-  if (!user || !user.profile || !user.profile.diet || !user.profile.plan) {
-    plannerContainer.innerHTML = `
-            <div class="empty-state">
-                <h3>Complete Your Profile</h3>
-                <p>Please complete your profile with diet type and fitness plan to generate a meal plan.</p>
-            </div>
-        `;
-    return;
-  }
+  try {
+    const data = await fetchWithAuth("/meal-planner");
+    const mealPlan = data.weeklyPlan || {};
 
-  const mealPlan = getMealPlan(currentUserEmail);
-
-  if (!mealPlan || Object.keys(mealPlan).length === 0) {
-    plannerContainer.innerHTML = `
+    if (!mealPlan || Object.keys(mealPlan).length === 0) {
+      plannerContainer.innerHTML = `
             <div class="empty-state">
                 <h3>No Meal Plan Generated</h3>
                 <p>Click "Generate Weekly Plan" to create your personalized weekly meal plan.</p>
             </div>
         `;
-    return;
-  }
+      return;
+    }
 
-  displayMealPlan(mealPlan);
+    displayMealPlan(mealPlan);
+  } catch (error) {
+    plannerContainer.innerHTML = `<div class="empty-state"><h3>Error</h3><p>${error.message}</p></div>`;
+  }
 }
 
-function generateWeeklyMealPlan() {
-  const users = getUsers();
-  const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
-  const user = users.find((u) => u.email === currentUserEmail);
-
-  if (!user || !user.profile || !user.profile.diet || !user.profile.plan) {
-    alert(
-      "Please complete your profile with diet type and fitness plan first!"
-    );
-    return;
-  }
-
-  const diet = user.profile.diet;
-  const plan = user.profile.plan;
-  const availableMeals = getMealsByDietAndPlan(diet, plan);
-
-  if (availableMeals.length === 0) {
-    alert(
-      "No meals available for your diet type and plan. Please check your profile settings."
-    );
-    return;
-  }
-
-  const days = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ];
-  const mealTypes = ["Breakfast", "Lunch", "Dinner"];
-  const weeklyPlan = {};
-
-  days.forEach((day) => {
-    weeklyPlan[day] = {
-      Breakfast: null,
-      Lunch: null,
-      Dinner: null,
-    };
-
-    mealTypes.forEach((mealType) => {
-      // Randomly select a meal from available meals
-      const randomMeal =
-        availableMeals[Math.floor(Math.random() * availableMeals.length)];
-      weeklyPlan[day][mealType] = {
-        name: randomMeal.name,
-        calories: parseInt(randomMeal.calories),
-        emoji: randomMeal.emoji,
-      };
+async function generateWeeklyMealPlan() {
+  try {
+    const data = await fetchWithAuth("/meal-planner/generate", {
+      method: "POST",
     });
-  });
-
-  saveMealPlan(currentUserEmail, weeklyPlan);
-  displayMealPlan(weeklyPlan);
-  alert("Weekly meal plan generated successfully!");
+    displayMealPlan(data.weeklyPlan);
+    alert("Weekly meal plan generated successfully!");
+  } catch (error) {
+    alert("Failed to generate plan: " + error.message);
+  }
 }
 
 function displayMealPlan(mealPlan) {
@@ -1026,7 +667,7 @@ function displayMealPlan(mealPlan) {
 
   plannerContainer.innerHTML = days
     .map((day) => {
-      const dayMeals = mealPlan[day];
+      const dayMeals = mealPlan[day] || {};
       const totalCalories =
         (dayMeals.Breakfast?.calories || 0) +
         (dayMeals.Lunch?.calories || 0) +
@@ -1084,31 +725,18 @@ function displayMealPlan(mealPlan) {
     .join("");
 }
 
-function clearMealPlan() {
+async function clearMealPlan() {
   if (confirm("Are you sure you want to clear your meal plan?")) {
-    const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
-    saveMealPlan(currentUserEmail, {});
-    loadMealPlanner();
+    try {
+      await fetchWithAuth("/meal-planner", { method: "DELETE" });
+      loadMealPlanner();
+    } catch (error) {
+      alert("Failed to clear plan: " + error.message);
+    }
   }
 }
 
-function getMealPlan(email) {
-  const plannerData = localStorage.getItem(MEAL_PLANNER_KEY);
-  if (!plannerData) return {};
-  const plans = JSON.parse(plannerData);
-  return plans[email] || {};
-}
-
-function saveMealPlan(email, plan) {
-  const plannerData = localStorage.getItem(MEAL_PLANNER_KEY);
-  const plans = plannerData ? JSON.parse(plannerData) : {};
-  plans[email] = plan;
-  localStorage.setItem(MEAL_PLANNER_KEY, JSON.stringify(plans));
-}
-
 // Consultation Functions
-const APPOINTMENTS_KEY = "nutriverse_appointments";
-
 function setMinDate() {
   const dateInput = document.getElementById("consultation-date");
   if (dateInput) {
@@ -1119,7 +747,36 @@ function setMinDate() {
   }
 }
 
-function handleConsultationBooking(e) {
+async function fetchDoctors() {
+  try {
+    const data = await fetchWithAuth("/auth/doctors");
+    console.log("Fetched doctors:", data);
+    if (Array.isArray(data)) return data;
+    if (data.doctors && Array.isArray(data.doctors)) return data.doctors;
+    return [];
+  } catch (error) {
+    console.error("Error fetching doctors:", error);
+    return [];
+  }
+}
+
+async function populateDoctorDropdown() {
+  const select = document.getElementById("consultation-doctor");
+  if (!select) return;
+
+  const doctors = await fetchDoctors();
+  select.innerHTML =
+    '<option value="">Select Doctor</option>' +
+    doctors
+      .map((doc) => {
+        const name = doc.profile?.name || "Unknown Doctor";
+        const specialization = doc.profile?.specialization || "General";
+        return `<option value="${doc._id}">Dr. ${name} (${specialization})</option>`;
+      })
+      .join("");
+}
+
+async function handleConsultationBooking(e) {
   e.preventDefault();
 
   const date = document.getElementById("consultation-date").value;
@@ -1127,90 +784,85 @@ function handleConsultationBooking(e) {
   const doctor = document.getElementById("consultation-doctor").value;
   const reason = document.getElementById("consultation-reason").value;
 
-  const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
+  try {
+    await fetchWithAuth("/appointments", {
+      method: "POST",
+      body: JSON.stringify({ date, time, doctor, reason }),
+    });
 
-  const appointment = {
-    id: Date.now(),
-    email: currentUserEmail,
-    date,
-    time,
-    doctor,
-    reason,
-    status: "pending",
-    createdAt: new Date().toISOString(),
-  };
-
-  const appointments = getAppointments();
-  appointments.push(appointment);
-  saveAppointments(appointments);
-
-  document.getElementById("consultationForm").reset();
-  loadAppointments();
-  alert(
-    "Appointment booked successfully! You will receive a confirmation email shortly."
-  );
+    document.getElementById("consultationForm").reset();
+    loadAppointments();
+    alert("Appointment booked successfully!");
+  } catch (error) {
+    alert("Failed to book appointment: " + error.message);
+  }
 }
 
-function loadAppointments() {
-  const currentUserEmail = localStorage.getItem(CURRENT_USER_KEY);
-  const appointments = getAppointments().filter(
-    (apt) => apt.email === currentUserEmail
-  );
-
+async function loadAppointments() {
   const appointmentsList = document.getElementById("appointments-list");
+  appointmentsList.innerHTML =
+    '<div class="loading">Loading appointments...</div>';
 
-  if (appointments.length === 0) {
-    appointmentsList.innerHTML = `
+  try {
+    const data = await fetchWithAuth("/appointments");
+    const appointments = data.appointments || [];
+
+    // Fetch doctors to resolve names
+    const doctors = await fetchDoctors();
+    const doctorMap = doctors.reduce((acc, doc) => {
+      const name = doc.profile?.name || "Unknown Doctor";
+      acc[doc._id] = `Dr. ${name}`;
+      return acc;
+    }, {});
+
+    if (appointments.length === 0) {
+      appointmentsList.innerHTML = `
             <div class="empty-state">
                 <h3>No Appointments</h3>
                 <p>You haven't booked any appointments yet. Book your first consultation above!</p>
             </div>
         `;
-    return;
-  }
+      return;
+    }
 
-  // Sort appointments by date
-  appointments.sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Sort appointments by date
+    appointments.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  const doctorNames = {
-    "dr-smith": "Dr. Sarah Smith - Nutritionist",
-    "dr-johnson": "Dr. Michael Johnson - Dietitian",
-    "dr-williams": "Dr. Emily Williams - Wellness Coach",
-    "dr-brown": "Dr. David Brown - Clinical Nutritionist",
-  };
+    appointmentsList.innerHTML = appointments
+      .map((apt) => {
+        const appointmentDate = new Date(apt.date);
+        const formattedDate = appointmentDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const time12hr = formatTime12Hour(apt.time);
 
-  appointmentsList.innerHTML = appointments
-    .map((apt) => {
-      const appointmentDate = new Date(apt.date);
-      const formattedDate = appointmentDate.toLocaleDateString("en-US", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-      const time12hr = formatTime12Hour(apt.time);
-
-      return `
+        return `
             <div class="appointment-item">
                 <div class="appointment-header">
                     <div>
                         <div class="appointment-doctor">${
-                          doctorNames[apt.doctor] || apt.doctor
+                          doctorMap[apt.doctor] || "Unknown Doctor"
                         }</div>
                         <div class="appointment-date-time">📅 ${formattedDate} at ${time12hr}</div>
                     </div>
                 </div>
                 <div class="appointment-reason">${apt.reason}</div>
                 <span class="appointment-status ${apt.status}">${
-        apt.status.charAt(0).toUpperCase() + apt.status.slice(1)
-      }</span>
-                <button class="delete-appointment" onclick="deleteAppointment(${
-                  apt.id
-                })">Cancel Appointment</button>
+                  apt.status.charAt(0).toUpperCase() + apt.status.slice(1)
+                }</span>
+                <button class="delete-appointment" onclick="deleteAppointment('${
+                  apt._id
+                }')">Cancel Appointment</button>
             </div>
         `;
-    })
-    .join("");
+      })
+      .join("");
+  } catch (error) {
+    appointmentsList.innerHTML = `<div class="empty-state"><h3>Error</h3><p>${error.message}</p></div>`;
+  }
 }
 
 function formatTime12Hour(time24) {
@@ -1220,23 +872,188 @@ function formatTime12Hour(time24) {
   return `${hour12}:${minutes} ${ampm}`;
 }
 
-function deleteAppointment(id) {
+async function deleteAppointment(id) {
   if (confirm("Are you sure you want to cancel this appointment?")) {
-    const appointments = getAppointments();
-    const filtered = appointments.filter((apt) => apt.id !== id);
-    saveAppointments(filtered);
-    loadAppointments();
+    try {
+      await fetchWithAuth(`/appointments/${id}`, { method: "DELETE" });
+      loadAppointments();
+    } catch (error) {
+      alert("Failed to cancel appointment: " + error.message);
+    }
   }
 }
 
 // Make deleteAppointment available globally
 window.deleteAppointment = deleteAppointment;
 
-function getAppointments() {
-  const appointments = localStorage.getItem(APPOINTMENTS_KEY);
-  return appointments ? JSON.parse(appointments) : [];
+// Doctor View Functions
+function setupDoctorView() {
+  // Hide user nav items
+  document
+    .querySelectorAll(".nav-btn[data-page]:not(.doctor-nav)")
+    .forEach((btn) => {
+      btn.style.display = "none";
+    });
+
+  // Show doctor nav items
+  document.querySelectorAll(".doctor-nav").forEach((btn) => {
+    btn.style.display = "block";
+  });
+
+  // Show doctor page
+  switchPage("doctor");
 }
 
-function saveAppointments(appointments) {
-  localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(appointments));
+async function loadDoctorAppointments() {
+  const listContainer = document.getElementById("doctor-appointments-list");
+  listContainer.innerHTML = '<div class="loading">Loading requests...</div>';
+
+  try {
+    const data = await fetchWithAuth("/appointments/all");
+    const appointments = data.appointments || [];
+
+    if (appointments.length === 0) {
+      listContainer.innerHTML =
+        '<div class="empty-state"><h3>No Appointments</h3><p>No appointment requests found.</p></div>';
+      return;
+    }
+
+    // Sort by date
+    appointments.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    listContainer.innerHTML = appointments
+      .map((apt) => {
+        const date = new Date(apt.date).toLocaleDateString();
+        const time = formatTime12Hour(apt.time);
+
+        return `
+      <div class="appointment-item">
+        <div class="appointment-header">
+          <div>
+            <div class="appointment-doctor">Patient: ${
+              apt.user?.profile?.name || "Unknown"
+            } (${apt.user?.email || "No Email"})</div>
+            <div class="appointment-date-time">📅 ${date} at ${time}</div>
+          </div>
+        </div>
+        <div class="appointment-reason"><strong>Reason:</strong> ${
+          apt.reason || "No reason provided"
+        }</div>
+        <div class="appointment-status ${
+          apt.status
+        }">Status: ${apt.status.toUpperCase()}</div>
+        ${
+          apt.status === "pending"
+            ? `
+          <div class="appointment-actions" style="margin-top: 10px;">
+            <button class="btn btn-primary" onclick="updateAppointmentStatus('${apt._id}', 'confirmed')" style="padding: 5px 10px; font-size: 0.9rem;">Accept</button>
+            <button class="btn btn-secondary" onclick="updateAppointmentStatus('${apt._id}', 'rejected')" style="padding: 5px 10px; font-size: 0.9rem; background: #f44336; color: white; border: none;">Reject</button>
+          </div>
+        `
+            : ""
+        }
+      </div>
+    `;
+      })
+      .join("");
+  } catch (error) {
+    listContainer.innerHTML = `<div class="empty-state"><h3>Error</h3><p>${error.message}</p></div>`;
+  }
 }
+
+async function updateAppointmentStatus(id, status) {
+  try {
+    await fetchWithAuth(`/appointments/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+    loadDoctorAppointments();
+    alert(`Appointment ${status}!`);
+  } catch (error) {
+    alert("Failed to update status: " + error.message);
+  }
+}
+
+async function loadDoctorProfile() {
+  try {
+    const user = await fetchWithAuth("/profile");
+    const profile = user.profile || {};
+
+    document.getElementById("doctor-profile-name").value = profile.name || "";
+    document.getElementById("doctor-profile-specialization").value =
+      profile.specialization || "";
+
+    // Populate availability checklist
+    const container = document.getElementById("doctor-availability-container");
+    if (container) {
+      const slots = [
+        "09:00",
+        "10:00",
+        "11:00",
+        "12:00",
+        "13:00",
+        "14:00",
+        "15:00",
+        "16:00",
+        "17:00",
+      ];
+      const savedSlots = profile.availableSlots || [];
+
+      container.innerHTML = `
+        <label style="display: block; margin-bottom: 10px; font-weight: 500;">Available Timings</label>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px;">
+          ${slots
+            .map(
+              (time) => `
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <input type="checkbox" id="slot-${time}" value="${time}" ${
+                savedSlots.includes(time) ? "checked" : ""
+              }>
+              <label for="slot-${time}" style="margin: 0; font-size: 0.9rem;">${formatTime12Hour(
+                time,
+              )}</label>
+            </div>
+          `,
+            )
+            .join("")}
+        </div>
+      `;
+    }
+  } catch (error) {
+    console.error("Error loading doctor profile:", error);
+  }
+}
+
+async function handleDoctorProfileSave(e) {
+  e.preventDefault();
+
+  const selectedSlots = [];
+  const container = document.getElementById("doctor-availability-container");
+  if (container) {
+    container
+      .querySelectorAll('input[type="checkbox"]:checked')
+      .forEach((cb) => {
+        selectedSlots.push(cb.value);
+      });
+  }
+
+  const profile = {
+    name: document.getElementById("doctor-profile-name").value,
+    specialization: document.getElementById("doctor-profile-specialization")
+      .value,
+    availableSlots: selectedSlots,
+  };
+
+  try {
+    await fetchWithAuth("/profile", {
+      method: "PUT",
+      body: JSON.stringify(profile),
+    });
+    alert("Doctor profile saved successfully!");
+  } catch (error) {
+    alert("Failed to save profile: " + error.message);
+  }
+}
+
+// Make global
+window.updateAppointmentStatus = updateAppointmentStatus;

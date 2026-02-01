@@ -1,10 +1,14 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nutriverse - Your Personal Nutrition Guide</title>
     <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>"
+    />
   </head>
   <body>
     <!-- Login/Signup Section -->
@@ -24,6 +28,13 @@
               <input type="email" id="login-email" required />
             </div>
             <div class="form-group">
+              <label for="login-role">Login As</label>
+              <select id="login-role" required>
+                <option value="user">User</option>
+                <option value="doctor">Doctor</option>
+              </select>
+            </div>
+            <div class="form-group">
               <label for="login-password">Password</label>
               <input type="password" id="login-password" required />
             </div>
@@ -41,6 +52,13 @@
             <div class="form-group">
               <label for="signup-name">Name</label>
               <input type="text" id="signup-name" required />
+            </div>
+            <div class="form-group">
+              <label for="signup-role">Register As</label>
+              <select id="signup-role" required>
+                <option value="user">User</option>
+                <option value="doctor">Doctor</option>
+              </select>
             </div>
             <div class="form-group">
               <label for="signup-email">Email</label>
@@ -74,6 +92,20 @@
           <button class="nav-btn" data-page="meal-planner">Meal Planner</button>
           <button class="nav-btn" data-page="exercises">Exercises</button>
           <button class="nav-btn" data-page="consultation">Consultation</button>
+          <button
+            class="nav-btn doctor-nav"
+            data-page="doctor"
+            style="display: none"
+          >
+            Appointments
+          </button>
+          <button
+            class="nav-btn doctor-nav"
+            data-page="doctor-profile"
+            style="display: none"
+          >
+            My Profile
+          </button>
           <button class="nav-btn" id="logout-btn">Logout</button>
         </div>
       </nav>
@@ -167,8 +199,14 @@
       <!-- Meals Page -->
       <div id="meals-page" class="page">
         <div class="container">
-          <h2>Meal Suggestions</h2>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>Meal Suggestions</h2>
+            <button class="btn btn-primary" onclick="openAddRecipeModal()">Add Recipe</button>
+          </div>
+          <h3>Recommended for You</h3>
           <div id="meals-container" class="meals-grid"></div>
+          <h3 style="margin-top: 30px;">Community Recipes</h3>
+          <div id="community-meals-container" class="meals-grid"></div>
         </div>
       </div>
 
@@ -226,18 +264,6 @@
                   <label for="consultation-doctor">Select Doctor</label>
                   <select id="consultation-doctor" required>
                     <option value="">Select Doctor</option>
-                    <option value="dr-smith">
-                      Dr. Sarah Smith - Nutritionist
-                    </option>
-                    <option value="dr-johnson">
-                      Dr. Michael Johnson - Dietitian
-                    </option>
-                    <option value="dr-williams">
-                      Dr. Emily Williams - Wellness Coach
-                    </option>
-                    <option value="dr-brown">
-                      Dr. David Brown - Clinical Nutritionist
-                    </option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -262,6 +288,105 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Doctor Dashboard Page -->
+      <div id="doctor-page" class="page">
+        <div class="container">
+          <h2>Appointment Requests</h2>
+          <div id="doctor-appointments-list" class="appointments-list"></div>
+        </div>
+      </div>
+
+      <!-- Doctor Profile Page -->
+      <div id="doctor-profile-page" class="page">
+        <div class="container">
+          <h2>Doctor Profile</h2>
+          <div class="profile-card">
+            <form id="doctorProfileForm">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="doctor-profile-name">Name</label>
+                  <input type="text" id="doctor-profile-name" required />
+                </div>
+                <div class="form-group">
+                  <label for="doctor-profile-specialization"
+                    >Specialization</label
+                  >
+                  <input
+                    type="text"
+                    id="doctor-profile-specialization"
+                    placeholder="e.g., Nutritionist, Dietitian"
+                    required
+                  />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="doctor-profile-start">Available From</label>
+                  <input type="time" id="doctor-profile-start" required />
+                </div>
+                <div class="form-group">
+                  <label for="doctor-profile-end">Available To</label>
+                  <input type="time" id="doctor-profile-end" required />
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary">
+                Save Profile
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recipe Modal -->
+    <div id="recipe-modal" class="modal hidden">
+      <div class="modal-content">
+        <span class="modal-close" onclick="closeRecipeModal()">&times;</span>
+        <h2 id="recipe-modal-title"></h2>
+        <div id="recipe-modal-body"></div>
+      </div>
+    </div>
+
+    <!-- Add Recipe Modal -->
+    <div id="add-recipe-modal" class="modal hidden">
+      <div class="modal-content">
+        <span class="modal-close" onclick="closeAddRecipeModal()">&times;</span>
+        <h2>Add New Recipe</h2>
+        <form id="addRecipeForm">
+          <div class="form-group">
+            <label for="recipe-name">Recipe Name</label>
+            <input type="text" id="recipe-name" required />
+          </div>
+          <div class="form-group">
+            <label for="recipe-description">Description</label>
+            <input type="text" id="recipe-description" required />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="recipe-calories">Calories</label>
+              <input type="number" id="recipe-calories" required />
+            </div>
+            <div class="form-group">
+              <label for="recipe-diet">Diet Type</label>
+              <select id="recipe-diet" required>
+                <option value="veg">Vegetarian</option>
+                <option value="non-veg">Non-Vegetarian</option>
+                <option value="vegan">Vegan</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="recipe-ingredients">Ingredients</label>
+            <textarea id="recipe-ingredients" rows="3" placeholder="List ingredients..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label for="recipe-instructions">Instructions</label>
+            <textarea id="recipe-instructions" rows="3" placeholder="Cooking instructions..." required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Add Recipe</button>
+        </form>
       </div>
     </div>
 
