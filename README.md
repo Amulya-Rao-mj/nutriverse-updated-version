@@ -1,6 +1,7 @@
 # 🌱 Nutriverse
 
 A modern, personalized nutrition website with a full-stack architecture. Users can track their profile, get personalized meal suggestions, plan meals, and book consultations with doctors.
+Whereas the doctors can accept or cancel an appointment.
 
 ## Features
 
@@ -258,7 +259,7 @@ Create a `.env` file in the `backend` directory with:
 - `JWT_SECRET` - Secret key for JWT tokens
 - `NODE_ENV` - Environment (development/production)
 
-## Production Deployment
+## Production Deployment 
 
 For production deployment:
 
@@ -268,11 +269,7 @@ For production deployment:
 4. Configure CORS to allow only your frontend domain
 5. Use environment variables for sensitive data
 6. Enable HTTPS
-7. Set up proper error logging and monitoring
-
-## License
-
-This project is open source and available for personal and educational use.
+7. Set up proper error logging and monitoring.
 
 ## Notes
 
